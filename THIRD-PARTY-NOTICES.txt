@@ -1,0 +1,53 @@
+TempGuard third-party notices
+=============================
+
+The release package contains LibreHardwareMonitorLib 0.9.6 and the runtime
+dependencies restored by that NuGet package. TempGuard does not modify these
+assemblies.
+
+Component                         Version   License
+--------------------------------  --------  ---------
+LibreHardwareMonitorLib           0.9.6     MPL-2.0
+DiskInfoToolkit                   1.1.2     MPL-2.0
+RAMSPDToolkit-NDD                 1.4.2     MPL-2.0
+BlackSharp.Core                   1.0.7     MPL-2.0
+HidSharp                          2.6.4     Apache-2.0
+System.Buffers                    4.6.1     MIT
+System.Memory                     4.6.3     MIT
+System.Numerics.Vectors           4.6.1     MIT
+System.Runtime.CompilerServices.Unsafe 6.1.2 MIT
+System.Security.AccessControl     6.0.0     MIT
+System.Security.Principal.Windows 5.0.0     MIT
+System.Threading.AccessControl    10.0.3    MIT
+
+LibreHardwareMonitor source and license:
+https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/tree/v0.9.6
+
+NuGet package metadata and source archives:
+https://www.nuget.org/packages/LibreHardwareMonitorLib/0.9.6
+
+Mozilla Public License 2.0:
+https://www.mozilla.org/MPL/2.0/
+
+MIT License text:
+https://opensource.org/license/mit
+
+Apache License 2.0 and HidSharp package metadata:
+https://www.apache.org/licenses/LICENSE-2.0
+https://www.nuget.org/packages/HidSharp/2.6.4
+
+Optional sensor driver
+----------------------
+
+PawnIO is not included in the TempGuard source repository or release archive.
+When a user explicitly chooses Install sensor support, TempGuard downloads the
+unmodified official PawnIO Setup 2.1.0 executable directly from its GitHub
+release and verifies this pinned SHA-256 before running it:
+
+A3A46226C5E2824F4CDD42BE0EECBABFC672C86F7889710F5AB1E6AD385B47A0
+
+PawnIO Setup releases:
+https://github.com/namazso/PawnIO.Setup/releases/tag/2.1.0
+
+PawnIO source and GPL-2.0-with-exception license:
+https://github.com/namazso/PawnIO

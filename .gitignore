@@ -1,0 +1,18 @@
+# Restored dependencies and generated releases
+packages/
+build/
+artifacts/
+dist/
+dist-v*/
+.package/
+.lhm-release/
+.ci-smoke/
+
+# Local-only files
+assets/PawnIO_setup.exe
+*.nupkg
+*.zip
+*.pdb
+ui-preview*.png
+*.user
+*.suo
