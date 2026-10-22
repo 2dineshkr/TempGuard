@@ -51,9 +51,18 @@ namespace TempGuard
         }
     }
 
+    internal sealed class BufferedListView : ListView
+    {
+        public BufferedListView()
+        {
+            DoubleBuffered = true;
+        }
+    }
+
     internal sealed class MainForm : Form
     {
         private readonly TemperatureMonitor _monitor;
+        private readonly ProcessLoadMonitor _processMonitor;
         private readonly AppSettings _settings;
         private readonly Timer _timer;
         private readonly NotifyIcon _tray;
@@ -72,6 +81,10 @@ namespace TempGuard
         private readonly CheckBox _startupCheck;
         private readonly ToolStripMenuItem _startupMenu;
         private readonly Button _adminButton;
+        private readonly ListView _processList;
+        private readonly Label _processCountLabel;
+        private readonly Label _processUpdatedLabel;
+        private readonly Button _endProcessButton;
         private ThermalLevel _lastLevel = ThermalLevel.Unknown;
         private bool _hasThermalBaseline;
         private bool _syncingStartupUi;
@@ -89,19 +102,22 @@ namespace TempGuard
         private static readonly Color CriticalColor = Color.FromArgb(255, 93, 114);
         private static readonly Color UnknownColor = Color.FromArgb(126, 139, 160);
         private static readonly Color AccentColor = Color.FromArgb(91, 140, 255);
+        private static readonly int CurrentProcessId = GetCurrentProcessId();
+        private static readonly int CurrentSessionId = GetCurrentSessionId();
 
         public MainForm(bool startMinimized)
         {
             _settings = AppSettings.Load();
             _monitor = new TemperatureMonitor();
+            _processMonitor = new ProcessLoadMonitor();
 
             Text = "TempGuard";
             Icon = SystemIcons.Shield;
             BackColor = Background;
             ForeColor = TextPrimary;
             Font = new Font("Segoe UI", 9F);
-            ClientSize = new Size(760, 710);
-            MinimumSize = new Size(700, 640);
+            ClientSize = new Size(760, 680);
+            MinimumSize = new Size(700, 620);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.Sizable;
             AutoScaleMode = AutoScaleMode.Dpi;
@@ -111,17 +127,56 @@ namespace TempGuard
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 4,
+                RowCount = 3,
                 Padding = new Padding(24, 20, 24, 22),
                 BackColor = Background
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 206));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 132));
             Controls.Add(root);
 
             root.Controls.Add(BuildHeader(), 0, 0);
+
+            TableLayoutPanel tabBar = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                BackColor = Background,
+                Margin = new Padding(0, 0, 0, 6)
+            };
+            tabBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 168));
+            tabBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 168));
+            tabBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            Button temperaturesTabButton = CreateTabButton("TEMPERATURES", true);
+            Button cpuLoadTabButton = CreateTabButton("CPU LOAD", false);
+            tabBar.Controls.Add(temperaturesTabButton, 0, 0);
+            tabBar.Controls.Add(cpuLoadTabButton, 1, 0);
+            root.Controls.Add(tabBar, 0, 1);
+
+            Panel contentHost = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Background,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
+            root.Controls.Add(contentHost, 0, 2);
+
+            TableLayoutPanel dashboard = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                BackColor = Background,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
+            dashboard.RowStyles.Add(new RowStyle(SizeType.Absolute, 206));
+            dashboard.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            dashboard.RowStyles.Add(new RowStyle(SizeType.Absolute, 132));
+            contentHost.Controls.Add(dashboard);
 
             _statusCard = new CardPanel
             {
@@ -239,7 +294,7 @@ namespace TempGuard
             statusDetails.Controls.Add(_sourceLabel, 0, 2);
             statusDetails.Controls.Add(powerPill, 0, 3);
             statusLayout.Controls.Add(statusDetails, 1, 0);
-            root.Controls.Add(_statusCard, 0, 1);
+            dashboard.Controls.Add(_statusCard, 0, 0);
 
             CardPanel sensorsCard = new CardPanel
             {
@@ -363,7 +418,7 @@ namespace TempGuard
                 Font = new Font("Segoe UI", 8F)
             };
             sensorsLayout.Controls.Add(_updatedLabel, 0, 2);
-            root.Controls.Add(sensorsCard, 0, 2);
+            dashboard.Controls.Add(sensorsCard, 0, 1);
 
             CardPanel settingsCard = new CardPanel
             {
@@ -445,7 +500,154 @@ namespace TempGuard
             startupRow.Controls.Add(startupHint, 1, 0);
             settingsLayout.Controls.Add(startupRow, 0, 2);
             settingsCard.Controls.Add(settingsLayout);
-            root.Controls.Add(settingsCard, 0, 3);
+            dashboard.Controls.Add(settingsCard, 0, 2);
+
+            CardPanel processCard = new CardPanel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Card,
+                BorderColor = Border,
+                Padding = new Padding(18, 14, 18, 14),
+                Margin = new Padding(0)
+            };
+            TableLayoutPanel processLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 4,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0)
+            };
+            processLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            processLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            processLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            processLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            processCard.Controls.Add(processLayout);
+
+            TableLayoutPanel processHeader = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0)
+            };
+            processHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            processHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            TableLayoutPanel processTitleBlock = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0)
+            };
+            processTitleBlock.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
+            processTitleBlock.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            processTitleBlock.Controls.Add(new Label
+            {
+                Text = "APPLICATION CPU LOAD",
+                Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
+                ForeColor = TextPrimary,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0)
+            }, 0, 0);
+            processTitleBlock.Controls.Add(new Label
+            {
+                Text = "Use this list to identify heavy processes. Values update every two seconds.",
+                ForeColor = Muted,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.TopLeft,
+                Margin = new Padding(0)
+            }, 0, 1);
+            _processCountLabel = new Label
+            {
+                Text = "SAMPLING",
+                Font = new Font("Segoe UI Semibold", 8F, FontStyle.Bold),
+                ForeColor = Muted,
+                AutoSize = true,
+                Anchor = AnchorStyles.Right
+            };
+            processHeader.Controls.Add(processTitleBlock, 0, 0);
+            processHeader.Controls.Add(_processCountLabel, 1, 0);
+            processLayout.Controls.Add(processHeader, 0, 0);
+
+            _processUpdatedLabel = new Label
+            {
+                Text = "Collecting the first CPU sample…",
+                ForeColor = Muted,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0)
+            };
+            processLayout.Controls.Add(_processUpdatedLabel, 0, 1);
+
+            _processList = new BufferedListView
+            {
+                View = View.Details,
+                FullRowSelect = true,
+                MultiSelect = false,
+                HeaderStyle = ColumnHeaderStyle.Nonclickable,
+                BackColor = Card,
+                ForeColor = TextPrimary,
+                BorderStyle = BorderStyle.FixedSingle,
+                Dock = DockStyle.Fill,
+                HideSelection = false,
+                Font = new Font("Segoe UI", 9F)
+            };
+            _processList.Columns.Add("APPLICATION / PROCESS", 190);
+            _processList.Columns.Add("PID", 70, HorizontalAlignment.Right);
+            _processList.Columns.Add("CPU", 78, HorizontalAlignment.Right);
+            _processList.Columns.Add("MEMORY", 100, HorizontalAlignment.Right);
+            _processList.Columns.Add("WINDOW", 260);
+            _processList.SelectedIndexChanged += delegate { UpdateEndProcessButton(); };
+            _processList.Resize += delegate { ResizeProcessColumns(); };
+            processLayout.Controls.Add(_processList, 0, 2);
+
+            TableLayoutPanel processActions = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0, 10, 0, 0)
+            };
+            processActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            processActions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            processActions.Controls.Add(new Label
+            {
+                Text = "Ending a process can lose unsaved work. Select only an application you recognize.",
+                ForeColor = Muted,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true,
+                Margin = new Padding(0)
+            }, 0, 0);
+            _endProcessButton = CreateButton("End selected task", CriticalColor, 168);
+            _endProcessButton.Enabled = false;
+            _endProcessButton.Anchor = AnchorStyles.Right;
+            _endProcessButton.Click += EndSelectedProcess;
+            processActions.Controls.Add(_endProcessButton, 1, 0);
+            processLayout.Controls.Add(processActions, 0, 3);
+            processCard.Visible = false;
+            contentHost.Controls.Add(processCard);
+            dashboard.BringToFront();
+
+            temperaturesTabButton.Click += delegate
+            {
+                processCard.Visible = false;
+                dashboard.Visible = true;
+                dashboard.BringToFront();
+                SetTabSelection(temperaturesTabButton, cpuLoadTabButton);
+            };
+            cpuLoadTabButton.Click += delegate
+            {
+                dashboard.Visible = false;
+                processCard.Visible = true;
+                processCard.BringToFront();
+                SetTabSelection(cpuLoadTabButton, temperaturesTabButton);
+            };
 
             ContextMenuStrip menu = new ContextMenuStrip();
             menu.Items.Add("Open TempGuard", null, delegate { ShowWindow(); });
@@ -474,13 +676,13 @@ namespace TempGuard
             SetTrayIcon(ThermalLevel.Unknown, null);
 
             _timer = new Timer { Interval = 2000 };
-            _timer.Tick += delegate { RefreshTemperatures(); };
+            _timer.Tick += delegate { RefreshDashboard(); };
             _timer.Start();
 
             FormClosing += OnFormClosing;
             Shown += delegate
             {
-                RefreshTemperatures();
+                RefreshDashboard();
                 if (startMinimized)
                     Hide();
                 else
@@ -546,6 +748,39 @@ namespace TempGuard
             };
             header.Controls.Add(liveBadge, 1, 0);
             return header;
+        }
+
+        private static Button CreateTabButton(string text, bool selected)
+        {
+            Button button = new Button
+            {
+                Text = text,
+                Dock = DockStyle.Fill,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = selected ? CardRaised : Background,
+                ForeColor = selected ? TextPrimary : Muted,
+                Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold),
+                Margin = new Padding(0, 0, 8, 0),
+                UseVisualStyleBackColor = false
+            };
+            button.FlatAppearance.BorderSize = selected ? 2 : 1;
+            button.FlatAppearance.BorderColor = selected ? AccentColor : Border;
+            button.FlatAppearance.MouseOverBackColor = CardRaised;
+            button.FlatAppearance.MouseDownBackColor = Mix(CardRaised, Color.Black, 0.10F);
+            return button;
+        }
+
+        private static void SetTabSelection(Button selected, Button other)
+        {
+            selected.BackColor = CardRaised;
+            selected.ForeColor = TextPrimary;
+            selected.FlatAppearance.BorderSize = 2;
+            selected.FlatAppearance.BorderColor = AccentColor;
+            other.BackColor = Background;
+            other.ForeColor = Muted;
+            other.FlatAppearance.BorderSize = 1;
+            other.FlatAppearance.BorderColor = Border;
         }
 
         private static Label CreateInlineLabel(string text)
@@ -615,6 +850,165 @@ namespace TempGuard
             _sensorList.Columns[1].Width = 82;
             _sensorList.Columns[2].Width = 92;
             _sensorList.Columns[0].Width = Math.Max(180, _sensorList.ClientSize.Width - 174);
+        }
+
+        private void ResizeProcessColumns()
+        {
+            if (_processList.ClientSize.Width < 520) return;
+            _processList.Columns[0].Width = 190;
+            _processList.Columns[1].Width = 70;
+            _processList.Columns[2].Width = 78;
+            _processList.Columns[3].Width = 100;
+            _processList.Columns[4].Width = Math.Max(140, _processList.ClientSize.Width - 438);
+        }
+
+        private void RefreshDashboard()
+        {
+            RefreshTemperatures();
+            RefreshProcesses();
+        }
+
+        private void RefreshProcesses()
+        {
+            int? selectedProcessId = null;
+            if (_processList.SelectedItems.Count == 1)
+            {
+                ProcessLoadReading selected = _processList.SelectedItems[0].Tag as ProcessLoadReading;
+                if (selected != null) selectedProcessId = selected.ProcessId;
+            }
+
+            bool hadBaseline = _processMonitor.HasBaseline;
+            System.Collections.Generic.IList<ProcessLoadReading> readings = _processMonitor.Read();
+            _processList.BeginUpdate();
+            try
+            {
+                _processList.Items.Clear();
+                foreach (ProcessLoadReading reading in readings)
+                {
+                    bool protectedProcess = IsProtectedProcess(reading);
+                    string displayName = protectedProcess ? reading.Name + "  •  protected" : reading.Name;
+                    ListViewItem item = new ListViewItem(displayName);
+                    item.Tag = reading;
+                    item.SubItems.Add(reading.ProcessId.ToString());
+                    item.SubItems.Add(reading.CpuPercent.ToString("0.0") + "%");
+                    item.SubItems.Add((reading.WorkingSetBytes / 1048576.0).ToString("0.0") + " MB");
+                    item.SubItems.Add(reading.WindowTitle);
+                    if (protectedProcess)
+                        item.ForeColor = UnknownColor;
+                    else if (reading.CpuPercent >= 50)
+                        item.BackColor = Mix(Card, CriticalColor, 0.15F);
+                    else if (reading.CpuPercent >= 20)
+                        item.BackColor = Mix(Card, WarningColor, 0.12F);
+                    _processList.Items.Add(item);
+
+                    if (selectedProcessId.HasValue && reading.ProcessId == selectedProcessId.Value)
+                        item.Selected = true;
+                }
+            }
+            finally
+            {
+                _processList.EndUpdate();
+            }
+
+            _processCountLabel.Text = readings.Count + (readings.Count == 1 ? " PROCESS" : " PROCESSES");
+            ProcessLoadReading busiest = readings.FirstOrDefault(reading => reading.CpuPercent >= 0.1);
+            if (!hadBaseline)
+                _processUpdatedLabel.Text = "Collecting the first CPU sample… percentages appear on the next update.";
+            else if (busiest == null)
+                _processUpdatedLabel.Text = "Updated " + DateTime.Now.ToString("HH:mm:ss") + "   •   No process is using significant CPU";
+            else
+                _processUpdatedLabel.Text = "Updated " + DateTime.Now.ToString("HH:mm:ss") + "   •   Highest: " +
+                    busiest.Name + " at " + busiest.CpuPercent.ToString("0.0") + "%";
+            UpdateEndProcessButton();
+        }
+
+        private void UpdateEndProcessButton()
+        {
+            if (_processList.SelectedItems.Count != 1)
+            {
+                _endProcessButton.Enabled = false;
+                _endProcessButton.Text = "End selected task";
+                return;
+            }
+
+            ProcessLoadReading reading = _processList.SelectedItems[0].Tag as ProcessLoadReading;
+            bool canEnd = reading != null && !IsProtectedProcess(reading);
+            _endProcessButton.Enabled = canEnd;
+            _endProcessButton.Text = canEnd ? "End selected task" : "Protected process";
+        }
+
+        private static bool IsProtectedProcess(ProcessLoadReading reading)
+        {
+            if (reading == null || reading.ProcessId <= 4 || reading.ProcessId == CurrentProcessId ||
+                reading.SessionId != CurrentSessionId)
+                return true;
+
+            string name = reading.Name ?? string.Empty;
+            string[] protectedNames =
+            {
+                "System", "Registry", "Secure System", "Memory Compression", "smss", "csrss",
+                "wininit", "winlogon", "services", "lsass", "svchost", "dwm", "explorer", "sihost",
+                "StartMenuExperienceHost", "ShellExperienceHost", "TextInputHost"
+            };
+            return protectedNames.Any(value => string.Equals(value, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static int GetCurrentProcessId()
+        {
+            using (Process process = Process.GetCurrentProcess())
+                return process.Id;
+        }
+
+        private static int GetCurrentSessionId()
+        {
+            using (Process process = Process.GetCurrentProcess())
+                return process.SessionId;
+        }
+
+        private void EndSelectedProcess(object sender, EventArgs e)
+        {
+            if (_processList.SelectedItems.Count != 1) return;
+            ProcessLoadReading reading = _processList.SelectedItems[0].Tag as ProcessLoadReading;
+            if (reading == null || IsProtectedProcess(reading))
+            {
+                MessageBox.Show("TempGuard will not end Windows-critical processes or itself.", "Protected process",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            DialogResult confirmation = MessageBox.Show(
+                "End " + reading.Name + " (PID " + reading.ProcessId + ")?\n\n" +
+                "The application will close immediately and unsaved work may be lost. Only continue if you recognize this process.",
+                "End selected task?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (confirmation != DialogResult.Yes) return;
+
+            try
+            {
+                using (Process process = Process.GetProcessById(reading.ProcessId))
+                {
+                    if (!string.Equals(process.ProcessName, reading.Name, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("The selected process has already exited and its ID was reused.");
+                    process.Kill();
+                    process.WaitForExit(1000);
+                }
+                RefreshProcesses();
+            }
+            catch (ArgumentException)
+            {
+                MessageBox.Show("That process has already closed.", "TempGuard",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                RefreshProcesses();
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                MessageBox.Show("Windows did not allow TempGuard to end this process. It may be protected or running as administrator.\n\n" +
+                    ex.Message, "Could not end task", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not end the selected task.\n\n" + ex.Message, "TempGuard",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void RefreshTemperatures()

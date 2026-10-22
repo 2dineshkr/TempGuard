@@ -6,7 +6,7 @@ TempGuard is a lightweight Windows system-tray utility that shows the hottest cu
 
 TempGuard currently supports 64-bit Windows 10 and Windows 11 with .NET Framework 4.8.
 
-1. Download `TempGuard-1.0.0-win-x64.zip` from the project release.
+1. Download `TempGuard-1.1.0-win-x64.zip` from the project release.
 2. Verify its SHA-256 value against the accompanying `.sha256` file.
 3. Extract the whole ZIP to a folder you control; do not run the EXE from inside the ZIP.
 4. Open `TempGuard.exe`.
@@ -24,6 +24,12 @@ Connecting a charger only changes the power status; it does not make Windows exp
 
 Driver installation is optional. TempGuard never downloads or installs it without explicit confirmation.
 
+## Find high-CPU applications
+
+Open the **CPU Load** tab to see running processes sorted by their recent CPU usage. The list refreshes every two seconds and also shows the process ID, memory usage, and window title when available.
+
+To close a process, select it and choose **End selected task**, then confirm the warning. This immediately stops the selected process and can discard unsaved work. TempGuard prevents ending itself, processes from other Windows sessions, and known Windows-critical shell and service processes. Windows may also deny access to protected or administrator-level processes.
+
 ## Color guide
 
 - **Green (below 75°C by default):** temperature is stable.
@@ -37,6 +43,8 @@ The orange and red thresholds are configurable. The hottest valid CPU/GPU sensor
 
 - Live temperature and thermal color in the Windows tray
 - Detail window listing every detected CPU/GPU temperature sensor
+- CPU Load tab showing per-process CPU and memory use
+- Confirmed end-task action with protections for TempGuard and critical Windows processes
 - Actionable notifications when sensor availability or thermal state changes
 - Two-degree threshold hysteresis to prevent notification spam near a boundary
 - Charging-state guidance
@@ -59,14 +67,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1
 The script restores the pinned LibreHardwareMonitorLib 0.9.6 package and dependencies from NuGet. It creates:
 
 - `build\TempGuard-win-x64\` — unpacked application
-- `artifacts\TempGuard-1.0.0-win-x64.zip` — distributable package
-- `artifacts\TempGuard-1.0.0-win-x64.zip.sha256` — package checksum
+- `artifacts\TempGuard-1.1.0-win-x64.zip` — distributable package
+- `artifacts\TempGuard-1.1.0-win-x64.zip.sha256` — package checksum
 
 Generated dependencies, binaries, and release archives are ignored by Git. Releases should be produced by the included GitHub Actions workflow so the source and build log are public.
 
 ## Privacy and security
 
-Temperature data stays on the computer. The only network request made by the running app occurs after the user explicitly chooses to install sensor support. See [SECURITY.md](SECURITY.md) for the trust model and reporting instructions.
+Temperature and process-usage data stay on the computer. The only network request made by the running app occurs after the user explicitly chooses to install sensor support. See [SECURITY.md](SECURITY.md) for the trust model and reporting instructions.
 
 ## License
 

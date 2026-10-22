@@ -18,13 +18,13 @@ jobs:
 
       - name: Build release package
         shell: powershell
-        run: .\Build.ps1 -Version 1.0.0
+        run: .\Build.ps1 -Version 1.1.0
 
       - name: Upload package and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: TempGuard-1.0.0-win-x64
+          name: TempGuard-1.1.0-win-x64
           path: |
-            artifacts/TempGuard-1.0.0-win-x64.zip
-            artifacts/TempGuard-1.0.0-win-x64.zip.sha256
+            artifacts/TempGuard-1.1.0-win-x64.zip
+            artifacts/TempGuard-1.1.0-win-x64.zip.sha256
           if-no-files-found: error

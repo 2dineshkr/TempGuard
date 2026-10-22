@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$OutputDirectory = 'build\TempGuard-win-x64',
-    [string]$Version = '1.0.0',
+    [string]$Version = '1.1.0',
     [switch]$SkipArchive
 )
 
